@@ -1,0 +1,58 @@
+{
+  "_comment": "Reglas de prioridad para Campus Universitario Inteligente. Recarga en caliente.",
+  "_version": "2.0-campus",
+  "_context": "Sistema de seguridad universitaria — tótems distribuidos en campus",
+
+  "critical": {
+    "label": "CRÍTICO",
+    "response_time_seconds": 120,
+    "color": "#EF4444",
+    "types": [
+      "robo_con_violencia",
+      "secuestro",
+      "tiroteo",
+      "explosion",
+      "ataque_terrorista",
+      "rehenes",
+      "amenaza_bomba"
+    ],
+    "reason": "Riesgo inmediato para la comunidad universitaria — respuesta en menos de 2 minutos"
+  },
+
+  "high": {
+    "label": "ALTO",
+    "response_time_seconds": 300,
+    "color": "#F97316",
+    "types": [
+      "incendio",
+      "accidente_grave",
+      "acoso_violencia",
+      "emergencia_medica",
+      "fuga_gas",
+      "pelea_grupal",
+      "persona_herida",
+      "agresion_sexual"
+    ],
+    "reason": "Emergencia que requiere respuesta inmediata — máximo 5 minutos"
+  },
+
+  "medium": {
+    "label": "MEDIO",
+    "response_time_seconds": 900,
+    "color": "#EAB308",
+    "types": [
+      "robo",
+      "vandalismo",
+      "sospechoso",
+      "acoso_verbal",
+      "persona_extraviada",
+      "accidente_menor",
+      "falla_electrica",
+      "persona_vulnerable"
+    ],
+    "reason": "Situación que requiere atención — máximo 15 minutos"
+  },
+
+  "default_priority": "high",
+  "default_reason": "Emergencia en campus sin clasificación específica — prioridad alta por precaución"
+}

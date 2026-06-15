@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Campus Seguro — Centro de Vigilancia</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --bg-base:     #08090D;
+      --bg-panel:    #0E1117;
+      --bg-card:     #141820;
+      --bg-hover:    #1A2030;
+      --border:      #1E2A3A;
+      --text-main:   #E8EDF5;
+      --text-muted:  #6B7E9A;
+      --text-dim:    #3A4A60;
+      --accent:      #3D7EFF;
+      --accent-glow: rgba(61,126,255,0.18);
+      --campus-teal: #0DCFB4;
+      --critical:    #FF3B3B;
+      --high:        #FF8C00;
+      --medium:      #F5C518;
+      --ok:          #1AD68A;
+      --ok-dim:      rgba(26,214,138,0.12);
+      --warn-dim:    rgba(245,197,24,0.12);
+      --font-mono:   'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      --font-ui:     'Inter', 'Segoe UI', system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      gap: 1rem;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .campus-logo { display: flex; align-items: center; gap: 10px; }
+
+    .campus-shield {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--campus-teal) 100%);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+
+    .campus-name { display: flex; flex-direction: column; line-height: 1.2; }
+    .campus-name strong { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; color: var(--text-main); }
+    .campus-name span   { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; text-transform: uppercase; letter-spacing: 1.5px; }
+
+    .header-divider { width: 1px; height: 28px; background: var(--border); }
+
+    .stat-pill { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-muted); }
+    .stat-pill .num { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
+    .stat-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    .dot-ok   { background: var(--ok);      box-shadow: 0 0 8px var(--ok);       animation: pulse-dot 2s infinite; }
+    .dot-crit { background: var(--critical); box-shadow: 0 0 8px var(--critical); animation: pulse-dot 0.8s infinite; }
+    .dot-warn { background: var(--medium);   box-shadow: 0 0 6px var(--medium); }
+    .dot-off  { background: var(--text-dim); }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    #pending-badge {
+      display: none;
+      align-items: center; gap: 6px;
+      background: rgba(255,59,59,0.12);
+      border: 1px solid var(--critical);
+      color: var(--critical);
+      padding: 4px 12px; border-radius: 20px;
+      font-size: 0.78rem; font-weight: 700;
+      cursor: pointer;
+      animation: blink-badge 1s infinite;
+      transition: background 0.2s;
+    }
+    #pending-badge.visible { display: flex; }
+    #pending-badge:hover   { background: rgba(255,59,59,0.22); }
+
+    @keyframes blink-badge {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.6; }
+    }
+
+    #ws-status {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--ok-dim);
+      border: 1px solid var(--ok);
+      color: var(--ok);
+      padding: 4px 12px; border-radius: 20px;
+      font-size: 0.78rem; font-weight: 700;
+      transition: all 0.3s;
+    }
+
+    main { display: flex; flex: 1; overflow: hidden; }
+
+    #map-container {
+      flex: 1 1 0; min-width: 0;
+      position: relative;
+      border-right: 1px solid var(--border);
+    }
+    #map { width: 100%; height: 100%; }
+
+    #map-legend {
+      position: absolute; bottom: 24px; left: 16px; z-index: 1000;
+      background: rgba(14,17,23,0.88);
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px;
+      font-size: 0.72rem; backdrop-filter: blur(8px);
+    }
+    #map-legend .leg-title {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--text-muted); margin-bottom: 7px;
+    }
+    .leg-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; color: var(--text-main); }
+    .leg-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+
+    #sidebar {
+      width: 360px; flex-shrink: 0;
+      background: var(--bg-panel);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    .tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .tab {
+      flex: 1; padding: 0.75rem 0.5rem; text-align: center;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--text-muted); cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab:hover  { color: var(--text-main); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    #filter-panel {
+      display: none; flex-direction: column; gap: 0.6rem;
+      padding: 0.9rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-base);
+    }
+    #filter-panel.visible { display: flex; }
+
+    .filter-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .filter-group { display: flex; flex-direction: column; gap: 3px; }
+
+    .filter-label {
+      font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);
+    }
+
+    .filter-select-sm {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 6px; padding: 6px 4px;
+      font-size: 0.78rem; font-family: var(--font-ui);
+      outline: none; transition: border-color 0.2s; cursor: pointer; width: 100%;
+    }
+    .filter-select-sm:focus { border-color: var(--accent); }
+
+    .filter-input, .filter-select {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      border-radius: 6px; padding: 6px 8px;
+      font-size: 0.8rem; font-family: var(--font-ui);
+      outline: none; transition: border-color 0.2s;
+    }
+    .filter-input:focus, .filter-select:focus { border-color: var(--accent); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+    .chip {
+      padding: 3px 9px; border-radius: 12px;
+      font-size: 0.7rem; font-weight: 700;
+      cursor: pointer; border: 1px solid var(--border); color: var(--text-muted);
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .chip:hover     { border-color: var(--accent); color: var(--accent); }
+    .chip.active-chip { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
+    .filter-actions { display: flex; margin-top: 2px; }
+    .btn-filter-clear {
+      width: 100%;
+      background: var(--bg-card); color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 10px; font-size: 0.78rem; cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .btn-filter-clear:hover { color: var(--text-main); border-color: var(--accent); }
+
+    #filter-result-info {
+      display: none; justify-content: space-between; align-items: center;
+      padding: 5px 10px; font-size: 0.72rem; color: var(--text-muted);
+      background: var(--bg-base); border-bottom: 1px solid var(--border);
+    }
+    #filter-result-info.visible { display: flex; }
+    #filter-result-info a { color: var(--accent); cursor: pointer; }
+
+    #alerts-list { flex: 1; overflow-y: auto; padding: 8px; }
+
+    #empty-state {
+      text-align: center; color: var(--text-muted);
+      margin-top: 3rem; font-size: 0.85rem; padding: 2rem 1rem;
+    }
+    #empty-state .empty-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+
+    .alert-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--text-dim);
+      border-radius: 8px; padding: 12px; margin-bottom: 7px;
+      cursor: pointer; position: relative;
+      transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+    }
+    .alert-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.4); filter: brightness(1.08); }
+
+    .alert-card.critical    { border-left-color: var(--critical); }
+    .alert-card.high        { border-left-color: var(--high); }
+    .alert-card.medium      { border-left-color: var(--medium); }
+    .alert-card.confirmed   { border-left-color: var(--ok); opacity: 0.8; }
+    .alert-card.false-alarm { border-left-color: var(--text-dim); opacity: 0.5; }
+
+    .alert-card.en-cola::after {
+      content: 'EN COLA';
+      position: absolute; top: 8px; right: 8px;
+      background: rgba(249,115,22,0.15); color: var(--high);
+      border: 1px solid var(--high);
+      font-size: 0.6rem; font-weight: 700; padding: 2px 5px; border-radius: 4px;
+    }
+
+    .card-top      { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .card-device   { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+    .card-time     { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); }
+    .card-type     { font-size: 0.9rem; font-weight: 700; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .card-location { font-size: 0.78rem; color: #8BAFD0; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+    .card-zone     { font-size: 0.73rem; color: var(--text-muted); margin-bottom: 7px; }
+    .card-footer   { display: flex; justify-content: space-between; align-items: center; }
+
+    .priority-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .bg-critical { background: var(--critical); color: white; }
+    .bg-high     { background: var(--high);     color: white; }
+    .bg-medium   { background: var(--medium);   color: black; }
+    .bg-ok       { background: var(--ok);       color: #08090D; }
+    .bg-false    { background: var(--text-dim); color: var(--text-muted); }
+
+    .guard-chip {
+      font-size: 0.65rem; color: var(--campus-teal);
+      border: 1px solid rgba(13,207,180,0.35);
+      padding: 1px 6px; border-radius: 10px; font-weight: 600;
+    }
+
+    .tag-extra { font-size: 0.62rem; font-weight: 700; padding: 1px 4px; border-radius: 4px; margin-left: 4px; vertical-align: middle; }
+    .tag-hist  { border: 1px solid var(--text-dim); color: var(--text-muted); }
+    .tag-live  { border: 1px solid var(--ok);       color: var(--ok); }
+    .tag-pend  { border: 1px solid var(--high);     color: var(--high); }
+
+    .status-chip      { font-size: 0.62rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
+    .status-confirmed { background: rgba(26,214,138,0.15); color: var(--ok);        border: 1px solid var(--ok); }
+    .status-false     { background: rgba(58,74,96,0.3);    color: var(--text-muted); border: 1px solid var(--text-dim); }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    @keyframes flashBorder {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,59,0); }
+      50%       { box-shadow: 0 0 0 5px rgba(255,59,59,0.45); }
+    }
+    .alert-card.nueva { animation: slideIn 0.3s ease-out, flashBorder 0.9s ease-in-out 3; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-panel); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2A3A50; }
+
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85); z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    #modal-overlay.active { display: flex; }
+
+    #modal {
+      background: var(--bg-panel); border: 1px solid var(--border);
+      border-radius: 14px; width: 90%; max-width: 840px; max-height: 92vh;
+      overflow-y: auto; box-shadow: 0 30px 80px rgba(0,0,0,0.8);
+      animation: modalIn 0.22s ease-out;
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.93); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
+    }
+    .modal-header-left    { display: flex; align-items: center; gap: 10px; }
+    .modal-priority-dot   { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .modal-header h2      { font-size: 0.95rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
+
+    #modal-queue-indicator {
+      display: none;
+      background: rgba(249,115,22,0.12); color: var(--high);
+      border: 1px solid var(--high); border-radius: 6px;
+      padding: 3px 9px; font-size: 0.72rem; font-weight: 700;
+    }
+    #modal-queue-indicator.visible { display: block; }
+
+    .modal-close {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 1.3rem; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .modal-close:hover { color: white; background: var(--bg-hover); }
+
+    .modal-body { padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; }
+
+    .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .info-cell { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; }
+    .info-cell .label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 3px; }
+    .info-cell .value { font-size: 0.88rem; font-weight: 700; color: var(--text-main); }
+    .info-cell.highlight { border-color: var(--accent); background: var(--accent-glow); }
+    .info-cell.highlight .value { color: var(--accent); }
+
+    .guard-banner {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(13,207,180,0.08); border: 1px solid rgba(13,207,180,0.3);
+      border-radius: 8px; padding: 9px 14px;
+      font-size: 0.83rem; color: var(--campus-teal); font-weight: 600;
+    }
+
+    .camera-section { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .cam-box        { background: #000; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; position: relative; }
+    .cam-label {
+      position: absolute; top: 8px; left: 8px; z-index: 2;
+      background: rgba(0,0,0,0.72); color: white;
+      font-size: 0.65rem; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .cam-stream { width: 100%; min-height: 175px; object-fit: cover; display: block; }
+    .cam-error  {
+      min-height: 175px; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px; color: var(--text-muted); font-size: 0.82rem;
+      text-align: center; padding: 1rem;
+    }
+
+    #snap-saved-badge {
+      display: none; position: absolute; top: 8px; right: 8px; z-index: 3;
+      background: rgba(26,214,138,0.8); color: white;
+      font-size: 0.6rem; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+      text-transform: uppercase;
+    }
+    #snap-saved-badge.visible { display: block; }
+
+    .trans-box    { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+    .trans-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);
+    }
+    .trans-dot          { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
+    .trans-dot.listening { background: var(--medium); box-shadow: 0 0 8px var(--medium); animation: pulse-dot 1s infinite; }
+    .trans-dot.done      { background: var(--ok);    box-shadow: 0 0 6px var(--ok); }
+    #trans-status { color: var(--text-muted); font-size: 0.7rem; font-weight: 400; text-transform: none; letter-spacing: 0; }
+    #trans-text   { font-size: 0.92rem; line-height: 1.65; color: var(--text-main); min-height: 46px; font-style: italic; }
+    #trans-text.empty { color: var(--text-muted); }
+
+    .kw-danger  { background: rgba(255,59,59,0.18); color: #FF6B6B; border-radius: 3px; padding: 1px 4px; font-weight: 700; font-style: normal; }
+    .kw-neutral { background: rgba(245,197,24,0.18); color: var(--medium); border-radius: 3px; padding: 1px 4px; font-weight: 700; font-style: normal; }
+    .kw-alert {
+      display: none; background: rgba(255,59,59,0.08); border: 1px solid rgba(255,59,59,0.5);
+      color: var(--critical); border-radius: 6px; padding: 7px 12px;
+      font-size: 0.82rem; font-weight: 700; margin-top: 8px; text-align: center;
+    }
+    .kw-alert.visible { display: block; }
+
+    #modal-result {
+      display: none; text-align: center; padding: 1rem; border-radius: 8px;
+      font-weight: 700; font-size: 0.95rem;
+    }
+    #modal-result.confirmed   { background: var(--ok-dim); color: var(--ok); border: 1px solid var(--ok); display: block; }
+    #modal-result.false-alarm { background: rgba(58,74,96,0.3); color: var(--text-muted); border: 1px solid var(--text-dim); display: block; }
+
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-confirm, .btn-discard {
+      padding: 0.85rem; border: none; border-radius: 8px;
+      font-size: 0.92rem; font-weight: 800; cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      text-transform: uppercase; letter-spacing: 1.5px;
+    }
+    .btn-confirm { background: var(--ok); color: #08090D; }
+    .btn-discard { background: var(--bg-hover); color: var(--text-muted); border: 1px solid var(--border); }
+    .btn-confirm:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-discard:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-confirm:disabled, .btn-discard:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    .spinner-msg { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
+
+    .map-totem-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 50%; font-size: 13px;
+      border: 2.5px solid #08090D;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="campus-logo">
+      <div class="campus-shield">🎓</div>
+      <div class="campus-name">
+        <strong>Campus Seguro</strong>
+        <span>Centro de Vigilancia Universitaria</span>
+      </div>
+    </div>
+    <div class="header-divider"></div>
+    <div class="stat-pill">
+      <div class="dot dot-ok" id="live-dot"></div>
+      <span class="num" id="live-count">0</span>
+      <span>activas</span>
+    </div>
+    <div class="header-divider"></div>
+    <div class="stat-pill">
+      <span>Tótems:</span>
+      <span class="num" id="totems-count">—</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="pending-badge" onclick="procesarSiguienteEnCola()">
+      🚨 <span id="pending-count">0</span> en espera
+    </div>
+    <div id="ws-status">
+      <div class="dot dot-ok" id="ws-dot"></div>
+      <span id="ws-text">Conectando...</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="map-container">
+    <div id="map"></div>
+    <div id="map-legend">
+      <div class="leg-title">Prioridad del incidente</div>
+      <div class="leg-row"><div class="leg-dot" style="background:var(--critical);box-shadow:0 0 6px var(--critical)"></div> Crítico — &lt; 2 min</div>
+      <div class="leg-row"><div class="leg-dot" style="background:var(--high)"></div> Alto — &lt; 5 min</div>
+      <div class="leg-row"><div class="leg-dot" style="background:var(--medium)"></div> Medio — &lt; 15 min</div>
+      <div class="leg-row"><div class="leg-dot" style="background:var(--ok)"></div> Atendido</div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="tabs">
+      <div class="tab active" id="tab-live"    onclick="cambiarTab('live')">🔴 En Vivo</div>
+      <div class="tab"        id="tab-history" onclick="cambiarTab('history')">📋 Historial</div>
+    </div>
+
+    <div id="filter-panel">
+
+      <div class="filter-row">
+        <div class="filter-group">
+          <span class="filter-label">Día</span>
+          <select class="filter-select-sm" id="f-day" onchange="aplicarFiltros()">
+            <option value="">Todos</option>
+            <option value="01">01</option><option value="02">02</option><option value="03">03</option>
+            <option value="04">04</option><option value="05">05</option><option value="06">06</option>
+            <option value="07">07</option><option value="08">08</option><option value="09">09</option>
+            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            <option value="13">13</option><option value="14">14</option><option value="15">15</option>
+            <option value="16">16</option><option value="17">17</option><option value="18">18</option>
+            <option value="19">19</option><option value="20">20</option><option value="21">21</option>
+            <option value="22">22</option><option value="23">23</option><option value="24">24</option>
+            <option value="25">25</option><option value="26">26</option><option value="27">27</option>
+            <option value="28">28</option><option value="29">29</option><option value="30">30</option>
+            <option value="31">31</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Mes</span>
+          <select class="filter-select-sm" id="f-month" onchange="aplicarFiltros()">
+            <option value="">Todos</option>
+            <option value="01">Enero</option>
+            <option value="02">Febrero</option>
+            <option value="03">Marzo</option>
+            <option value="04">Abril</option>
+            <option value="05">Mayo</option>
+            <option value="06">Junio</option>
+            <option value="07">Julio</option>
+            <option value="08">Agosto</option>
+            <option value="09">Septiembre</option>
+            <option value="10">Octubre</option>
+            <option value="11">Noviembre</option>
+            <option value="12">Diciembre</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <div class="filter-group" style="grid-column: span 2;">
+          <span class="filter-label">Tótem / Dispositivo</span>
+          <select class="filter-select" id="f-device" onchange="aplicarFiltros()">
+            <option value="">Todos los Tótems</option>
+            <option value="PASILLO">Tótem Pasillo</option>
+            <option value="CANCHA">Tótem Cancha</option>
+            <option value="EDIFICIO_S">Edificio S</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Prioridad</span>
+        <div class="chips">
+          <span class="chip active-chip" onclick="setChip(this,'priority','')">Todas</span>
+          <span class="chip" onclick="setChip(this,'priority','critical')">🔴 Crítico</span>
+          <span class="chip" onclick="setChip(this,'priority','high')">🟠 Alto</span>
+          <span class="chip" onclick="setChip(this,'priority','medium')">🟡 Medio</span>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Estado</span>
+        <div class="chips">
+          <span class="chip active-chip" onclick="setChip(this,'status','')">Todos</span>
+          <span class="chip" onclick="setChip(this,'status','confirmed')">✅ Confirmados</span>
+          <span class="chip" onclick="setChip(this,'status','false_alarm')">❌ Falsa alarma</span>
+          <span class="chip" onclick="setChip(this,'status','received')">⏳ Pendientes</span>
+        </div>
+      </div>
+
+      <div class="filter-actions">
+        <button class="btn-filter-clear" onclick="limpiarFiltros()">✕ Limpiar filtros</button>
+      </div>
+    </div>
+
+    <div id="filter-result-info">
+      <span id="filter-result-text"></span>
+      <a onclick="limpiarFiltros()">Limpiar filtros</a>
+    </div>
+
+    <div id="alerts-list">
+      <div id="empty-state">
+        <div class="empty-icon">📡</div>
+        Esperando incidentes del campus...
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <div class="modal-header">
+      <div class="modal-header-left">
+        <div class="modal-priority-dot" id="modal-dot"></div>
+        <h2 id="modal-title">Verificación de Incidente</h2>
+      </div>
+      <div id="modal-queue-indicator"></div>
+      <button class="modal-close" onclick="cerrarModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="info-grid">
+        <div class="info-cell">
+          <div class="label">Tótem / Dispositivo</div>
+          <div class="value" id="mi-device">—</div>
+        </div>
+        <div class="info-cell highlight">
+          <div class="label">Tipo de Emergencia</div>
+          <div class="value" id="mi-type">—</div>
+        </div>
+        <div class="info-cell">
+          <div class="label">Prioridad</div>
+          <div class="value" id="mi-priority">—</div>
+        </div>
+        <div class="info-cell" style="grid-column: span 2;">
+          <div class="label">Zona del Campus</div>
+          <div class="value" id="mi-zone">—</div>
+        </div>
+        <div class="info-cell">
+          <div class="label">Hora</div>
+          <div class="value" id="mi-time">—</div>
+        </div>
+      </div>
+
+<div class="guard-banner" id="guard-banner">
+        📍 <span id="mi-guard">Ubicación asignada: —</span>
+      </div>
+
+      <div class="camera-section">
+        <div class="cam-box">
+          <span class="cam-label">🔴 En vivo</span>
+          <img id="cam-live" class="cam-stream" src="" alt="Stream"
+            onerror="this.style.display='none';document.getElementById('cam-live-err').style.display='flex';" />
+          <div class="cam-error" id="cam-live-err" style="display:none;">
+            <span style="font-size:1.8rem">📵</span>
+            <span>Cámara no disponible</span>
+          </div>
+        </div>
+        <div class="cam-box">
+          <span class="cam-label">📸 Foto del momento</span>
+          <span id="snap-saved-badge">✓ Guardada</span>
+          <img id="snapshot-img" class="cam-stream" src="" alt="Snapshot"
+            onerror="this.style.display='none';document.getElementById('snap-err').style.display='flex';" />
+          <div class="cam-error" id="snap-err" style="display:none;">
+            <span style="font-size:1.8rem">🖼️</span>
+            <span>Sin captura disponible</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="trans-box">
+        <div class="trans-header">
+          <div class="trans-dot" id="trans-dot"></div>
+          <span>Transcripción de audio</span>
+          <span id="trans-status">Esperando...</span>
+        </div>
+        <div id="trans-text" class="empty">
+          El sistema está capturando y analizando el audio del lugar...
+        </div>
+        <div class="kw-alert" id="kw-alert">⚠️ Palabras de alerta detectadas — posible emergencia real</div>
+      </div>
+
+      <div id="modal-result"></div>
+      <div class="modal-actions" id="modal-btns">
+        <button class="btn-confirm" id="btn-confirm" onclick="verificarAlerta('confirmed')">
+          ✅ Confirmar — Despachar guardia
+        </button>
+        <button class="btn-discard" id="btn-discard" onclick="verificarAlerta('false_alarm')">
+          ❌ Falsa alarma
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const CAMARAS = {
+  'PASILLO': 'http://192.168.2.161:8080', // IP de la cámara del pasillo
+  'Cancha':  'http://192.168.2.192:8080', // IP de la cámara de la cancha
+  'default': 'http://192.168.2.192:8080'  // Cámara de respaldo
+};
+function getCamURL(id) { return CAMARAS[id] || CAMARAS['default']; }
+
+const WS_URL  = 'ws://localhost:3004';
+const API_URL = 'http://localhost:3005';
+
+const KEYWORDS_DANGER  = ['ayuda','auxilio','socorro','robo','disparo','disparos','fuego','incendio','secuestro','violencia','navaja','cuchillo','pistola','arma','sangre','herido','herida','golpe','acoso','amenaza','ladrón'];
+const KEYWORDS_NEUTRAL = ['emergencia','alerta','accidente','policía','ambulancia','bomberos','guardia','seguridad'];
+
+const pinesMapa    = {};
+let alertaEnModal  = null;
+let tarjetaEnModal = null;
+const colaAlertas  = [];
+let modalOcupado   = false;
+const transcsPend  = {};
+let tabActual      = 'live';
+let filtros        = { priority: '', status: '' };
+let liveCount      = 0;
+
+// ── Tabs ──────────────────────────────────────────────
+function cambiarTab(tab) {
+  tabActual = tab;
+  document.getElementById('tab-live').classList.toggle('active', tab === 'live');
+  document.getElementById('tab-history').classList.toggle('active', tab === 'history');
+  document.getElementById('filter-panel').classList.toggle('visible', tab === 'history');
+  document.getElementById('alerts-list').innerHTML = '';
+  if (tab === 'live') {
+    document.getElementById('filter-result-info').classList.remove('visible');
+    cargarHistorial();
+  } else {
+    aplicarFiltros();
+  }
+}
+
+// ── Chips — autoaplicar al seleccionar ───────────────
+function setChip(el, group, value) {
+  el.closest('.chips').querySelectorAll('.chip').forEach(c => c.classList.remove('active-chip'));
+  el.classList.add('active-chip');
+  filtros[group] = value;
+  aplicarFiltros();
+}
+
+// ── Filtros automáticos ───────────────────────────────
+async function aplicarFiltros() {
+  const day      = document.getElementById('f-day').value;
+  const month    = document.getElementById('f-month').value;
+  const device   = document.getElementById('f-device').value; 
+  const priority = filtros.priority;
+  const status   = filtros.status;
+
+  const params = new URLSearchParams({ limit: 50 });
+  const year   = new Date().getFullYear();
+
+  if (month && day) {
+    const fecha = `${year}-${month}-${day}`;
+    params.append('from', `${fecha}T00:00:00`);
+    params.append('to',   `${fecha}T23:59:59`);
+  } else if (month && !day) {
+    const lastDay = new Date(year, parseInt(month), 0).getDate();
+    params.append('from', `${year}-${month}-01T00:00:00`);
+    params.append('to',   `${year}-${month}-${String(lastDay).padStart(2,'0')}T23:59:59`);
+  }
+
+  if (device)   params.append('device_id', device); 
+  if (priority) params.append('priority', priority);
+  if (status)   params.append('status', status);
+
+  const lista = document.getElementById('alerts-list');
+  lista.innerHTML = '<div class="spinner-msg">⏳ Buscando...</div>';
+
+  try {
+    const resp  = await fetch(`${API_URL}/alerts?${params}`);
+    const datos = await resp.json();
+    let alerts  = datos.alerts || [];
+
+    if (day && !month) {
+      alerts = alerts.filter(a =>
+        String(new Date(a.timestamp).getDate()).padStart(2,'0') === day
+      );
+    }
+
+    lista.innerHTML = '';
+
+    const hayFiltro = !!(day || month || device || priority || status);
+    const infoEl    = document.getElementById('filter-result-info');
+    if (hayFiltro) {
+      document.getElementById('filter-result-text').textContent = `${alerts.length} registro(s) encontrado(s)`;
+      infoEl.classList.add('visible');
+    } else {
+      infoEl.classList.remove('visible');
+    }
+
+    if (!alerts.length) {
+      lista.innerHTML = '<div class="spinner-msg">Sin resultados</div>';
+      return;
+    }
+    alerts.forEach(a => renderAlert(a, 'filtrado'));
+  } catch {
+    lista.innerHTML = '<div class="spinner-msg" style="color:var(--critical)">Error al consultar historial</div>';
+  }
+}
+
+function limpiarFiltros() {
+  document.getElementById('f-day').value   = '';
+  document.getElementById('f-month').value = '';
+  document.getElementById('f-device').value = '';
+  filtros = { priority: '', status: '' };
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active-chip'));
+  document.querySelectorAll('.chips .chip:first-child').forEach(c => c.classList.add('active-chip'));
+  document.getElementById('filter-result-info').classList.remove('visible');
+  aplicarFiltros();
+}
+
+// ── Cola ──────────────────────────────────────────────
+function actualizarBadgeCola() {
+  const badge = document.getElementById('pending-badge');
+  const count = document.getElementById('pending-count');
+  colaAlertas.length > 0
+    ? (count.textContent = colaAlertas.length, badge.classList.add('visible'))
+    : badge.classList.remove('visible');
+  const indicator = document.getElementById('modal-queue-indicator');
+  colaAlertas.length > 0
+    ? (indicator.textContent = `+${colaAlertas.length} en espera`, indicator.classList.add('visible'))
+    : indicator.classList.remove('visible');
+}
+
+function procesarSiguienteEnCola() {
+  if (!colaAlertas.length || modalOcupado) return;
+  const sig = colaAlertas.shift();
+  sig.card.classList.remove('en-cola');
+  actualizarBadgeCola();
+  abrirModal(sig.alert, sig.card);
+}
+
+// ── Mapa ──────────────────────────────────────────────
+const map = L.map('map').setView([19.9127, -99.5786], 17);
+const capaHibrida = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+  maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3']
+});
+capaHibrida.addTo(map);
+L.control.layers({
+  "Satélite híbrido": capaHibrida,
+  "Satélite": L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'] }),
+  "Calles":   L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'] }),
+  "Oscuro":   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 20 })
+}).addTo(map);
+
+function makeIcon(color, glow) {
+  const shadow = glow ? `box-shadow:0 0 14px ${color};` : '';
+  return L.divIcon({
+    className: '',
+    html: `<div class="map-totem-icon" style="background:${color};${shadow}">📍</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14]
+  });
+}
+const icons = {
+  critical: makeIcon('#FF3B3B', true),
+  high:     makeIcon('#FF8C00', false),
+  medium:   makeIcon('#F5C518', false),
+  ok:       makeIcon('#1AD68A', false),
+};
+
+// ── Transcripción ─────────────────────────────────────
+function resaltarKeywords(texto) {
+  let r = texto;
+  KEYWORDS_DANGER .forEach(w => r = r.replace(new RegExp(`\\b${w}\\b`,'gi'), `<span class="kw-danger">${w}</span>`));
+  KEYWORDS_NEUTRAL.forEach(w => r = r.replace(new RegExp(`\\b${w}\\b`,'gi'), `<span class="kw-neutral">${w}</span>`));
+  return r;
+}
+
+function mostrarTranscripcion(data) {
+  if (data.alert_id) transcsPend[data.alert_id] = data;
+  if (!alertaEnModal) return;
+  if (data.alert_id && alertaEnModal.alert_id && data.alert_id !== alertaEnModal.alert_id) return;
+  _renderTrans(data);
+  if (data.alert_id) delete transcsPend[data.alert_id];
+}
+
+function _renderTrans(data) {
+  document.getElementById('trans-dot').className = 'trans-dot done';
+  document.getElementById('trans-status').textContent = `Transcrito — ${new Date(data.timestamp).toLocaleTimeString('es-MX')}`;
+  const el = document.getElementById('trans-text');
+  el.className = '';
+  el.innerHTML = resaltarKeywords(data.text);
+  const peligro = KEYWORDS_DANGER.some(w => data.text.toLowerCase().includes(w));
+  document.getElementById('kw-alert').classList.toggle('visible', peligro);
+}
+
+function resetTrans() {
+  document.getElementById('trans-dot').className = 'trans-dot listening';
+  document.getElementById('trans-status').textContent = 'Capturando audio...';
+  const el = document.getElementById('trans-text');
+  el.className = 'empty';
+  el.textContent = 'El sistema está capturando y analizando el audio del lugar...';
+  document.getElementById('kw-alert').classList.remove('visible');
+}
+
+function noDisponibleTrans() {
+  document.getElementById('trans-dot').className = 'trans-dot';
+  document.getElementById('trans-status').textContent = 'No disponible';
+  const el = document.getElementById('trans-text');
+  el.className = 'empty';
+  el.textContent = 'Transcripción no disponible para este incidente.';
+  document.getElementById('kw-alert').classList.remove('visible');
+}
+
+// ── Modal ─────────────────────────────────────────────
+function colorPriority(p) {
+  if (p === 'critical') return 'var(--critical)';
+  if (p === 'high')     return 'var(--high)';
+  if (p === 'medium')   return 'var(--medium)';
+  return 'var(--text-dim)';
+}
+
+function labelPriority(p) {
+  if (p === 'critical') return '🔴 CRÍTICO';
+  if (p === 'high')     return '🟠 ALTO';
+  if (p === 'medium')   return '🟡 MEDIO';
+  return p?.toUpperCase() || '—';
+}
+
+function abrirModal(alert, card) {
+  modalOcupado   = true;
+  alertaEnModal  = alert;
+  tarjetaEnModal = card || null;
+
+  const color = colorPriority(alert.priority);
+  document.getElementById('modal-dot').style.background = color;
+  document.getElementById('modal-dot').style.boxShadow  = `0 0 8px ${color}`;
+  document.getElementById('modal-title').textContent =
+    (alert.emergency_type || 'Emergencia').replace(/_/g,' ').toUpperCase();
+
+  document.getElementById('mi-device').textContent   = alert.device_id || '—';
+  document.getElementById('mi-type').textContent     = (alert.emergency_type||'—').replace(/_/g,' ').toUpperCase();
+  document.getElementById('mi-priority').textContent = labelPriority(alert.priority);
+  document.getElementById('mi-zone').textContent     = alert.location_name
+    ? `${alert.location_name} · ${alert.zone || ''}`
+    : (alert.zone || `${parseFloat(alert.latitude).toFixed(5)}, ${parseFloat(alert.longitude).toFixed(5)}`);
+  document.getElementById('mi-time').textContent     = new Date(alert.timestamp).toLocaleTimeString('es-MX');
+ document.getElementById('mi-guard').textContent    = `Punto de alerta: ${alert.location_name || alert.device_id}`;
+
+  const yaResuelta = alert.status === 'confirmed' || alert.status === 'false_alarm';
+  const resultDiv  = document.getElementById('modal-result');
+  const btns       = document.getElementById('modal-btns');
+
+  if (yaResuelta) {
+    btns.style.display    = 'none';
+    resultDiv.style.display = 'block';
+    resultDiv.className   = alert.status === 'confirmed' ? 'confirmed' : 'false-alarm';
+    resultDiv.textContent = alert.status === 'confirmed' ? '✅ Emergencia ya confirmada' : '❌ Ya marcada como falsa alarma';
+  } else {
+    resultDiv.className = ''; resultDiv.textContent = ''; resultDiv.style.display = 'none';
+    document.getElementById('btn-confirm').disabled = false;
+    document.getElementById('btn-discard').disabled = false;
+    btns.style.display = 'grid';
+  }
+
+  const camURL  = getCamURL(alert.device_id);
+  const liveImg = document.getElementById('cam-live');
+  liveImg.style.display = 'block';
+  document.getElementById('cam-live-err').style.display = 'none';
+  liveImg.src = `${camURL}/video?t=${Date.now()}`;
+
+  const snapImg   = document.getElementById('snapshot-img');
+  const snapBadge = document.getElementById('snap-saved-badge');
+  snapImg.style.display = 'block';
+  document.getElementById('snap-err').style.display = 'none';
+
+  if (alert.snapshot_url) {
+    snapImg.src = alert.snapshot_url;
+    snapBadge.classList.add('visible');
+  } else {
+    snapImg.src = `${camURL}/shot.jpg?t=${Date.now()}`;
+    snapBadge.classList.remove('visible');
+    if (alert.alert_id) {
+      setTimeout(async () => {
+        try {
+          const r = await fetch(`${API_URL}/alerts/${alert.alert_id}`);
+          const d = await r.json();
+          if (d.snapshot_url && alertaEnModal?.alert_id === alert.alert_id) {
+            snapImg.src = d.snapshot_url;
+            snapBadge.classList.add('visible');
+            alert.snapshot_url = d.snapshot_url;
+          }
+        } catch {}
+      }, 4000);
+    }
+  }
+
+  const trans = transcsPend[alert.alert_id];
+  if (trans)                    { _renderTrans(trans); delete transcsPend[alert.alert_id]; }
+  else if (alert.transcription) { _renderTrans({ alert_id: alert.alert_id, text: alert.transcription, timestamp: alert.timestamp }); }
+  else if (alert.snapshot_url)  { noDisponibleTrans(); }
+  else                          { resetTrans(); }
+
+  if (alert.alert_id && !yaResuelta) {
+    fetch(`${API_URL}/alerts/${alert.alert_id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'reviewing', device_id: alert.device_id })
+    }).catch(() => {});
+  }
+
+  actualizarBadgeCola();
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+function cerrarModal() {
+  document.getElementById('cam-live').src = '';
+  document.getElementById('modal-overlay').classList.remove('active');
+  alertaEnModal = null; tarjetaEnModal = null; modalOcupado = false;
+  setTimeout(procesarSiguienteEnCola, 400);
+}
+
+async function verificarAlerta(decision) {
+  if (!alertaEnModal) return;
+  const alertId = alertaEnModal.alert_id;
+  document.getElementById('btn-confirm').disabled = true;
+  document.getElementById('btn-discard').disabled = true;
+
+  try {
+    if (alertId) await fetch(`${API_URL}/alerts/${alertId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: decision, device_id: alertaEnModal.device_id })
+    });
+  } catch {}
+
+  alertaEnModal.status = decision;
+
+  const resultDiv = document.getElementById('modal-result');
+  resultDiv.style.display = 'block';
+  if (decision === 'confirmed') {
+    resultDiv.className   = 'confirmed';
+    resultDiv.textContent = '✅ Guardia despachado — incidente confirmado';
+    if (tarjetaEnModal) liveCount = Math.max(0, liveCount - 1);
+    document.getElementById('live-count').textContent = liveCount;
+  } else {
+    resultDiv.className   = 'false-alarm';
+    resultDiv.textContent = '❌ Marcado como falsa alarma';
+  }
+
+  if (tarjetaEnModal) actualizarTarjeta(tarjetaEnModal, decision);
+  setTimeout(cerrarModal, 1600);
+}
+
+function actualizarTarjeta(card, decision) {
+  card.classList.remove('critical','high','medium','nueva','en-cola');
+  card.classList.add(decision === 'confirmed' ? 'confirmed' : 'false-alarm');
+  const badge = card.querySelector('.priority-badge');
+  if (badge) {
+    badge.className   = `priority-badge ${decision === 'confirmed' ? 'bg-ok' : 'bg-false'}`;
+    badge.textContent = decision === 'confirmed' ? '✅ GUARDIA DESPACHADO' : '❌ FALSA ALARMA';
+  }
+}
+
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target.id === 'modal-overlay') cerrarModal();
+});
+
+// ── Renderizar tarjeta ────────────────────────────────
+function renderAlert(alert, type) {
+  const emptyEl = document.getElementById('empty-state');
+  if (emptyEl) emptyEl.remove();
+
+  const feed         = document.getElementById('alerts-list');
+  const timeStr      = new Date(alert.timestamp).toLocaleTimeString('es-MX', { hour12: false });
+  const dateStr      = new Date(alert.timestamp).toLocaleDateString('es-MX', { day:'2-digit', month:'short' });
+  const pclass       = alert.priority === 'critical' ? 'critical' : alert.priority === 'high' ? 'high' : 'medium';
+  const badgeClass   = alert.status === 'confirmed' ? 'bg-ok' : alert.status === 'false_alarm' ? 'bg-false' : `bg-${pclass}`;
+  const badgeText    = alert.status === 'confirmed'  ? '✅ GUARDIA DESPACHADO'
+                     : alert.status === 'false_alarm' ? '❌ FALSA ALARMA'
+                     : labelPriority(alert.priority);
+
+  let tagHtml = '';
+  if (type === 'pending')                        tagHtml = '<span class="tag-extra tag-pend">RECUPERADA</span>';
+  if (type === 'history' || type === 'filtrado') tagHtml = '<span class="tag-extra tag-hist">HISTORIAL</span>';
+
+  let statusHtml = '';
+  if (alert.status === 'confirmed')   statusHtml = '<span class="status-chip status-confirmed">CONF.</span>';
+  if (alert.status === 'false_alarm') statusHtml = '<span class="status-chip status-false">FALSA</span>';
+
+  const hasSnap        = alert.snapshot_url ? '📷 ' : '';
+  const emergencyLabel = (alert.emergency_type || '').replace(/_/g, ' ');
+  const locationLabel  = alert.location_name || alert.zone
+    || `${parseFloat(alert.latitude||0).toFixed(4)}, ${parseFloat(alert.longitude||0).toFixed(4)}`;
+
+  const card = document.createElement('div');
+  card.className = `alert-card ${pclass}${type === 'realtime' ? ' nueva' : ''}`;
+  if (alert.status === 'confirmed')   card.classList.add('confirmed');
+  if (alert.status === 'false_alarm') card.classList.add('false-alarm');
+
+  card.innerHTML = `
+    <div class="card-top">
+      <span class="card-device">${alert.device_id || 'TOTEM'}${tagHtml}${statusHtml}</span>
+      <span class="card-time">${type === 'filtrado' ? dateStr + ' ' : ''}${timeStr}</span>
+    </div>
+    <div class="card-type">${hasSnap}${emergencyLabel}</div>
+    <div class="card-location">📍 ${locationLabel}</div>
+    ${alert.zone_description ? `<div class="card-zone">${alert.zone_description}</div>` : ''}
+    <div class="card-footer">
+      <span class="priority-badge ${badgeClass}">${badgeText}</span>
+     
+    </div>
+  `;
+
+  feed.prepend(card);
+
+  if (alert.latitude && alert.longitude) {
+    const icon   = icons[pclass] || icons.medium;
+    const marker = L.marker([alert.latitude, alert.longitude], { icon }).addTo(map);
+    marker.bindPopup(`<b>${emergencyLabel.toUpperCase()}</b><br>${locationLabel}<br>${alert.guard_post || ''}`);
+    const uid = alert.alert_id || Date.now() + '' + Math.random();
+    pinesMapa[uid] = marker;
+
+    card.onclick = () => {
+      map.flyTo([alert.latitude, alert.longitude], 19, { animate: true, duration: 1.2 });
+      pinesMapa[uid].openPopup();
+      if (!modalOcupado) abrirModal(alert, card);
+    };
+
+    if (type === 'realtime') {
+      map.flyTo([alert.latitude, alert.longitude], 18, { animate: true, duration: 1 });
+      marker.openPopup();
+    }
+  }
+
+  if (type === 'realtime') {
+    liveCount++;
+    document.getElementById('live-count').textContent = liveCount;
+    if (!modalOcupado) { setTimeout(() => abrirModal(alert, card), 300); }
+    else               { card.classList.add('en-cola'); colaAlertas.push({ alert, card }); actualizarBadgeCola(); }
+  }
+}
+
+// ── WebSocket ─────────────────────────────────────────
+let ws;
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    const el = document.getElementById('ws-status');
+    document.getElementById('ws-text').textContent = 'Sistema en línea';
+    el.style.borderColor = 'var(--ok)';
+    el.style.background  = 'var(--ok-dim)';
+    el.style.color       = 'var(--ok)';
+    document.getElementById('ws-dot').className = 'dot dot-ok';
+  };
+  ws.onmessage = (event) => {
+    const payload = JSON.parse(event.data);
+    if      (payload.type === 'alert')         renderAlert(payload.data, 'realtime');
+    else if (payload.type === 'pending_alert')  renderAlert(payload.data, 'pending');
+    else if (payload.type === 'transcription')  mostrarTranscripcion(payload.data);
+  };
+  ws.onclose = () => {
+    const el = document.getElementById('ws-status');
+    document.getElementById('ws-text').textContent = 'Reconectando...';
+    el.style.borderColor = 'var(--critical)';
+    el.style.background  = 'rgba(255,59,59,0.1)';
+    el.style.color       = 'var(--critical)';
+    document.getElementById('ws-dot').className = 'dot dot-crit';
+    setTimeout(connectWS, 3000);
+  };
+}
+
+// ── Historial inicial ─────────────────────────────────
+async function cargarHistorial() {
+  try {
+    const resp  = await fetch(`${API_URL}/alerts?limit=10`);
+    const datos = await resp.json();
+    if (datos.alerts?.length) {
+      datos.alerts.reverse().forEach(a => renderAlert(a, 'history'));
+      document.getElementById('totems-count').textContent =
+        [...new Set(datos.alerts.map(a => a.device_id))].length;
+    }
+  } catch {}
+}
+
+cargarHistorial();
+connectWS();
+</script>
+</body>
+</html>
