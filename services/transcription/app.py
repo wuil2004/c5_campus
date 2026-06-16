@@ -10,12 +10,12 @@ from datetime import datetime
 
 CAM_AUDIO_URL = os.getenv("CAM_AUDIO_URL", "http://192.168.0.105:8080/audio.wav")
 REDIS_URL     = os.getenv("REDIS_URL", "redis://redis:6379")
-AUDIO_SECONDS = 3
+AUDIO_SECONDS = 10
 
 # Mapa de cámaras por dispositivo
 CAMARAS_AUDIO = {
-    'ESP32-001': 'http://192.168.2.192:8080/audio.wav',
-    'ESP32-002': 'http://192.168.2.161:8080/audio.wav',
+    'PASILLO': 'http://192.168.2.192:8080/audio.wav',
+    'Cancha': 'http://192.168.2.161:8080/audio.wav',
 }
 
 def get_cam_audio_url(device_id: str) -> str:
@@ -41,6 +41,31 @@ async def grabar_audio(segundos: int, url: str) -> str:
     return tmp
 
 def transcribir_sync(audio_path: str) -> str:
+    try:
+        segments, _ = model.transcribe(
+            audio_path,
+            language="es",
+            beam_size=5,
+            
+            # 1. Filtro estricto: Si no es claramente una voz humana, ignóralo
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=400),
+            
+            # 2. Evita que la IA se quede "ciclada" repitiendo la misma palabra
+            condition_on_previous_text=False,
+            
+            # 3. Le damos contexto para que no invente cosas raras con la estática
+            initial_prompt="Emergencia en el campus universitario. Seguridad, ayuda, guardia, auxilio. ¿Hay alguien ahí?"
+        )
+        texto = " ".join(s.text.strip() for s in segments)
+    except Exception as e:
+        print(f"[Transcription] Error interno en Whisper: {e}")
+        texto = ""
+    finally:
+        if os.path.exists(audio_path):
+            os.unlink(audio_path)
+            
+    return texto
     # Corre en thread separado para no bloquear el event loop
     segments, _ = model.transcribe(
         audio_path,
