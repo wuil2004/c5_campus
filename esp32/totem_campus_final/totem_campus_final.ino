@@ -47,8 +47,8 @@ const int   MQTT_PORT     = 1883;
 const char* MQTT_TOPIC    = "c5/alerts/panic";
 
 // Cambiar por la identidad real del punto de instalación
-const char* DEVICE_ID     = "Cancha";
-const char* LOCATION_NAME = "Estacionamientos";
+const char* DEVICE_ID     = "PASILLO";
+const char* LOCATION_NAME = "EDIFICIOS";
 
 // Coordenadas del punto exacto donde está instalado el tótem
 const float FIXED_LAT = 19.912752379357503;
