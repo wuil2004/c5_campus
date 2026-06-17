@@ -180,10 +180,10 @@ services:
     environment:
       - PORT=3002
       - REDIS_URL=redis://redis:6379
-      - PRIORITY_GRPC=priority:50051   # URL del servidor gRPC de Priority
+      - PRIORITY_GRPC=priority:50051
     depends_on:
       - redis
-      - priority                        # Geolocation espera a que Priority esté listo
+      - priority
     networks:
       - c5net
     restart: unless-stopped
@@ -242,6 +242,22 @@ services:
       - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - c5net
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    container_name: c5_frontend
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+      - ./styles.css:/usr/share/nginx/html/styles.css:ro
+      - ./app.js:/usr/share/nginx/html/app.js:ro
+    ports:
+      - "8090:80"
+    depends_on:
+      - notifications
+      - history
     networks:
       - c5net
     restart: unless-stopped

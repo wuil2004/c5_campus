@@ -16,8 +16,8 @@ const char* DEVICE_ID     = "PASILLO";
 const char* LOCATION_NAME = "EDIFICIOS";
 
 
-const float FIXED_LAT = 19.912752379357503;
-const float FIXED_LON = -99.57860148464074;
+const float FIXED_LAT = 19.917390;
+const float FIXED_LON = -99.581418;
 
 const int BUTTON_PIN = 14;
 const int RED_PIN    = 25;
