@@ -145,23 +145,8 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────
-  # MICROSERVICIO 2: GEOLOCALIZACIÓN
-  # ─────────────────────────────────────────────
-
-  geolocation:
-    build: ./services/geolocation
-    container_name: c5_geolocation
-    environment:
-      - PORT=3002
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-    networks:
-      - c5net
-    restart: unless-stopped
-
-  # ─────────────────────────────────────────────
-  # MICROSERVICIO 3: ASIGNACIÓN DE PRIORIDAD (gRPC)
+  # MICROSERVICIO 3: ASIGNACIÓN DE PRIORIDAD (gRPC + HTTP)
+  # Debe arrancar ANTES que Geolocation porque es el servidor gRPC
   # ─────────────────────────────────────────────
 
   priority:
@@ -178,6 +163,27 @@ services:
     ports:
       - "50051:50051"
       - "3003:3003"
+    networks:
+      - c5net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # MICROSERVICIO 2: GEOLOCALIZACIÓN
+  # Cliente gRPC de Priority — debe arrancar después de Priority
+  # Flujo: queue:alerts → [geo enrich] → gRPC ClassifyAlert
+  #      → queue:notify + queue:history + queue:transcription_input
+  # ─────────────────────────────────────────────
+
+  geolocation:
+    build: ./services/geolocation
+    container_name: c5_geolocation
+    environment:
+      - PORT=3002
+      - REDIS_URL=redis://redis:6379
+      - PRIORITY_GRPC=priority:50051   # URL del servidor gRPC de Priority
+    depends_on:
+      - redis
+      - priority                        # Geolocation espera a que Priority esté listo
     networks:
       - c5net
     restart: unless-stopped

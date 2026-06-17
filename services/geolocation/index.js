@@ -1,18 +1,46 @@
 // services/geolocation/index.js — Campus Universitario Inteligente
-// Enriquece coordenadas con zona del campus (edificio/área)
+// Enriquece coordenadas con zona del campus y llama a Priority via gRPC
 
-const express = require("express");
-const Redis = require("ioredis");
-const https = require("https");
+const express     = require("express");
+const Redis       = require("ioredis");
+const https       = require("https");
+const grpc        = require("@grpc/grpc-js");
+const protoLoader = require("@grpc/proto-loader");
+const path        = require("path");
 
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 3002;
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const PORT          = process.env.PORT          || 3002;
+const REDIS_URL     = process.env.REDIS_URL     || "redis://localhost:6379";
+const PRIORITY_GRPC = process.env.PRIORITY_GRPC || "priority:50051";
 
 const redis    = new Redis(REDIS_URL);
 const redisPub = new Redis(REDIS_URL);
+
+// ══════════════════════════════════════════════════════
+//  CLIENTE gRPC → Priority
+//  Carga el mismo .proto que usa el servidor
+// ══════════════════════════════════════════════════════
+const packageDef = protoLoader.loadSync(
+  path.join(__dirname, "priority.proto"),
+  { keepCase: true, longs: String, enums: String, defaults: true, oneofs: true }
+);
+const proto          = grpc.loadPackageDefinition(packageDef).priority;
+const priorityClient = new proto.PriorityService(
+  PRIORITY_GRPC,
+  grpc.credentials.createInsecure()
+);
+
+// Wrapper que convierte el callback de gRPC en una Promise
+function callClassifyAlert(request) {
+  return new Promise((resolve, reject) => {
+    priorityClient.ClassifyAlert(request, (err, response) => {
+      if (err) return reject(err);
+      resolve(response);
+    });
+  });
+}
 
 // ══════════════════════════════════════════════════════
 //  MAPA DE ZONAS DEL CAMPUS
@@ -72,7 +100,7 @@ const CAMPUS_ZONES = [
 ];
 
 // ── Cache de geocodificación inversa ─────────────────
-const geoCache = new Map();
+const geoCache    = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 // ── Buscar zona del campus por coordenadas ────────────
@@ -87,10 +115,8 @@ function findCampusZone(lat, lon) {
 }
 
 // ── Identificar zona a partir del device_id del tótem ─
-// Si el ESP32 ya envía location_name, lo usamos directamente.
 function getZoneFromDevice(alert) {
   if (alert.location_name) {
-    // Buscar zona que coincida con el nombre del tótem
     const match = CAMPUS_ZONES.find(z =>
       alert.location_name.toLowerCase().includes(z.name.toLowerCase().split(" ")[0].toLowerCase())
     );
@@ -103,12 +129,12 @@ function getZoneFromDevice(alert) {
 function reverseGeocode(lat, lon) {
   return new Promise((resolve) => {
     const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-    const cached = geoCache.get(cacheKey);
+    const cached   = geoCache.get(cacheKey);
     if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
       return resolve(cached.data);
     }
 
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&accept-language=es`;
+    const url     = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&accept-language=es`;
     const options = { headers: { "User-Agent": "SmartCampus-AlertSystem/2.0 (seguridad@campus.edu.mx)" } };
 
     https.get(url, options, (res) => {
@@ -116,16 +142,16 @@ function reverseGeocode(lat, lon) {
       res.on("data", chunk => data += chunk);
       res.on("end", () => {
         try {
-          const json = JSON.parse(data);
-          const addr = json.address || {};
+          const json   = JSON.parse(data);
+          const addr   = json.address || {};
           const result = {
             display_name: json.display_name || "Campus Universitario",
-            street: addr.road || addr.pedestrian || null,
+            street:       addr.road || addr.pedestrian || null,
             neighborhood: addr.neighbourhood || addr.suburb || null,
-            city: addr.city || addr.town || addr.municipality || null,
-            state: addr.state || null,
-            country: addr.country || null,
-            postcode: addr.postcode || null,
+            city:         addr.city || addr.town || addr.municipality || null,
+            state:        addr.state || null,
+            country:      addr.country || null,
+            postcode:     addr.postcode || null,
           };
           geoCache.set(cacheKey, { data: result, ts: Date.now() });
           resolve(result);
@@ -139,52 +165,48 @@ function reverseGeocode(lat, lon) {
   });
 }
 
-// ── Procesador de cola Redis ──────────────────────────
+// ══════════════════════════════════════════════════════
+//  PROCESADOR DE COLA REDIS
+//  Flujo: queue:alerts → [geo enrich] → gRPC Priority
+//       → queue:notify + queue:history + queue:transcription_input
+// ══════════════════════════════════════════════════════
 async function processQueue() {
   console.log("[Geolocation] Escuchando cola queue:alerts...");
+  console.log(`[Geolocation] Cliente gRPC conectado a Priority → ${PRIORITY_GRPC}`);
 
   while (true) {
     try {
       const result = await redis.brpop("queue:alerts", 5);
       if (!result) continue;
 
-      const alert = JSON.parse(result[1]);
-      const lat = parseFloat(alert.latitude);
-      const lon = parseFloat(alert.longitude);
+      const alert  = JSON.parse(result[1]);
+      const lat    = parseFloat(alert.latitude);
+      const lon    = parseFloat(alert.longitude);
+      const tStart = process.hrtime.bigint();
 
       console.log(`[Geolocation] Procesando: device=${alert.device_id} coords=(${lat}, ${lon})`);
 
-      // 1. Intentar identificar zona del campus (más rápido)
-      let campusZone = null;
-      
-      // Primero: por nombre del dispositivo (si el ESP32 lo envía)
-      campusZone = getZoneFromDevice(alert);
-      
-      // Segundo: por coordenadas geográficas
-      if (!campusZone) {
-        campusZone = findCampusZone(lat, lon);
-      }
-
+      // ── PASO 1: Enriquecer con zona del campus ──────
+      let campusZone = getZoneFromDevice(alert) || findCampusZone(lat, lon);
       let enriched;
 
       if (campusZone) {
-        // ✓ Zona identificada en el campus
         enriched = {
           ...alert,
-          zone:              campusZone.name,
-          zone_description:  campusZone.description,
-          guard_post:        campusZone.guardPost,
-          nearby_cameras:    campusZone.cameras,
-          address:           campusZone.description,
-          neighborhood:      campusZone.name,
-          city:              "Campus Universitario",
-          geo_source:        "campus_map",
-          geo_processed:     true,
-          geo_processed_at:  new Date().toISOString(),
+          zone:             campusZone.name,
+          zone_description: campusZone.description,
+          guard_post:       campusZone.guardPost,
+          nearby_cameras:   campusZone.cameras,
+          address:          campusZone.description,
+          neighborhood:     campusZone.name,
+          city:             "Campus Universitario",
+          geo_source:       "campus_map",
+          geo_processed:    true,
+          geo_processed_at: new Date().toISOString(),
         };
         console.log(`[Geolocation] ✓ Zona campus: ${campusZone.name} | Caseta: ${campusZone.guardPost}`);
       } else {
-        // Fuera del mapa definido → usar Nominatim como fallback
+        // Fuera del mapa → Nominatim como fallback
         console.log(`[Geolocation] Coordenadas fuera del mapa campus — consultando Nominatim`);
         const geoData = await reverseGeocode(lat, lon);
 
@@ -209,10 +231,63 @@ async function processQueue() {
         await new Promise(r => setTimeout(r, 1100));
       }
 
-      await redisPub.lpush("queue:geo_processed", JSON.stringify(enriched));
+      // ── PASO 2: Llamar a Priority via gRPC ──────────
+      //    Geolocation actúa como cliente gRPC de Priority.
+      //    Enviamos los datos enriquecidos (incluye zona ya resuelta).
+      console.log(`[Geolocation] → gRPC ClassifyAlert: device=${enriched.device_id} tipo="${enriched.emergency_type}" zona="${enriched.zone}"`);
+
+      const grpcRequest = {
+        device_id:      enriched.device_id,
+        emergency_type: enriched.emergency_type,
+        zone:           enriched.zone,
+        latitude:       lat,
+        longitude:      lon,
+        timestamp:      enriched.timestamp || new Date().toISOString(),
+      };
+
+      let grpcResponse;
+      try {
+        grpcResponse = await callClassifyAlert(grpcRequest);
+        console.log(`[Geolocation] ← gRPC respuesta: alert_id=${grpcResponse.alert_id} priority=${grpcResponse.priority.toUpperCase()}`);
+      } catch (grpcErr) {
+        // Si gRPC falla (Priority caído), clasificar localmente como medium
+        // y continuar sin perder la alerta
+        console.error(`[Geolocation] ✗ gRPC error: ${grpcErr.message} — usando prioridad por defecto`);
+        grpcResponse = {
+          alert_id:    `ALT-${Date.now()}-${enriched.device_id}`,
+          priority:    "medium",
+          reason:      "Clasificación de respaldo (gRPC no disponible)",
+          processed_at: new Date().toISOString(),
+        };
+      }
+
+      // ── PASO 3: Combinar geo + clasificación gRPC ───
+      const processed = {
+        ...enriched,
+        alert_id:              grpcResponse.alert_id,
+        priority:              grpcResponse.priority,
+        priority_reason:       grpcResponse.reason,
+        priority_processed_at: grpcResponse.processed_at,
+        grpc_classified:       true,   // flag para logs/demo
+      };
+
+      const tEnd   = process.hrtime.bigint();
+      const totalMs = (Number(tEnd - tStart) / 1_000_000).toFixed(2);
+
+      console.log(
+        `[Geolocation] ✓ Procesado en ${totalMs}ms | ` +
+        `${processed.alert_id} | ${processed.zone} | ${processed.priority.toUpperCase()}`
+      );
+
+      // ── PASO 4: Publicar en paralelo a notify, history y transcripción ─
+      await Promise.all([
+        redisPub.lpush("queue:notify",              JSON.stringify(processed)),
+        redisPub.lpush("queue:history",             JSON.stringify(processed)),
+        redisPub.lpush("queue:transcription_input", JSON.stringify(processed)),
+      ]);
 
     } catch (err) {
-      console.error("[Geolocation] Error:", err.message);
+      console.error("[Geolocation] Error en processQueue:", err.message);
       await new Promise(r => setTimeout(r, 2000));
     }
   }
@@ -220,7 +295,12 @@ async function processQueue() {
 
 // ── REST API ──────────────────────────────────────────
 app.get("/health", (req, res) =>
-  res.json({ status: "ok", service: "geolocation", campus_zones: CAMPUS_ZONES.length })
+  res.json({
+    status:        "ok",
+    service:       "geolocation",
+    campus_zones:  CAMPUS_ZONES.length,
+    grpc_target:   PRIORITY_GRPC,
+  })
 );
 
 // Mapa completo de zonas del campus (para el dashboard)
@@ -260,5 +340,6 @@ app.get("/zone", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`[Geolocation] Servicio iniciado en puerto ${PORT}`);
   console.log(`[Geolocation] Campus: ${CAMPUS_ZONES.length} zonas registradas`);
+  console.log(`[Geolocation] gRPC → Priority en ${PRIORITY_GRPC}`);
   processQueue();
 });
