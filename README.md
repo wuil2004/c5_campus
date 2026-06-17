@@ -15,21 +15,6 @@ Cada tótem es un poste físico instalado en **puntos ciegos, pasillos largos o 
 5. Transcribe el **audio del lugar** para detectar palabras clave de peligro
 6. El guardia confirma o descarta y el tótem recibe **feedback de LED/buzzer**
 
----
-
-## 🗺️ Zonas del campus configuradas
-
-| Zona | Caseta responsable | Tótem ID |
-|---|---|---|
-| Edificio de Laboratorios | Caseta Norte | TOTEM-LAB-A1, TOTEM-LAB-A2 |
-| Estacionamiento Norte | Caseta Norte | TOTEM-EST-B1, TOTEM-EST-B2 |
-| Biblioteca Central | Caseta Centro | TOTEM-BIBLIO |
-| Patio Central | Caseta Centro | TOTEM-PATIO |
-| Canchas Deportivas | Caseta Sur | TOTEM-CANCHAS |
-| Acceso Principal | Caseta Principal | TOTEM-ACCESO |
-| Edificio Administrativo | Caseta Principal | TOTEM-ADM |
-
----
 
 ## 🆘 Sistema de pulsaciones (campus)
 

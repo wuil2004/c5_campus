@@ -25,18 +25,10 @@ const MQTT_URL  = process.env.MQTT_BROKER || "mqtt://mosquitto:1883";
 // ── Mapa de cámaras por tótem/zona del campus ────────
 // Usar IP:puerto del stream MJPEG del ESP32-CAM o cámara IP
 const CAMARAS = {
-  "TOTEM-LAB-A1":   "http://192.168.10.101:8080",
-  "TOTEM-LAB-A2":   "http://192.168.10.102:8080",
-  "TOTEM-EST-B1":   "http://192.168.10.103:8080",
-  "TOTEM-EST-B2":   "http://192.168.10.104:8080",
-  "TOTEM-BIBLIO":   "http://192.168.10.105:8080",
-  "TOTEM-PATIO":    "http://192.168.10.106:8080",
-  "TOTEM-CANCHAS":  "http://192.168.10.107:8080",
-  "TOTEM-ACCESO":   "http://192.168.10.108:8080",
-  // Tótems ESP32-001 / ESP32-002 (nombres legacy)
-  "ESP32-001":      "http://192.168.10.101:8080",
-  "ESP32-002":      "http://192.168.10.102:8080",
-  "default":        "http://192.168.10.101:8080",
+  
+  'PASILLO': 'http://192.168.2.161:8080', // IP de la cámara del pasillo
+  'Cancha':  'http://192.168.2.192:8080', // IP de la cámara de la cancha
+  'default': 'http://192.168.2.192:8080' 
 };
 
 function getCamURL(device_id) {
