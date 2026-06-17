@@ -1,81 +1,40 @@
-/*
- * Campus Seguro — Tótem de Emergencia Universitaria
- * ESP32 + Botón + LED RGB + Buzzer + LCD 16x2 (I2C)
- *
- * ── PINES ──────────────────────────────────────────────
- * GPIO14 → Botón pánico (INPUT_PULLUP)
- * GPIO25 → LED Rojo   (Ánodo Común)
- * GPIO26 → LED Verde  (Ánodo Común)
- * GPIO27 → LED Azul   (Ánodo Común)
- * GPIO33 → Buzzer (via transistor NPN)
- * GPIO21 → SDA (Pantalla LCD I2C)
- * GPIO22 → SCL (Pantalla LCD I2C)
- *
- * ── ESTADOS LED + BUZZER + LCD ─────────────────────────
- * Verde fijo          → Sistema listo / campus seguro
- * Azul parpadeando    → Contando pulsaciones
- * Rojo fijo           → Enviando alerta
- * Morado parpadeando  → Guardia revisando el incidente
- * Verde fijo          → Guardia despachado / atendido
- * Rojo parpadeando    → Error de envío — reintentar
- *
- * ── TIPOS DE EMERGENCIA (pulsaciones) ──────────────────
- * 1 pulsación  → robo_con_violencia   (Crítico — 2 min)
- * 2 pulsaciones → acoso_violencia     (Alto    — 5 min)
- * 3 pulsaciones → incendio            (Crítico — 2 min)
- * 4 pulsaciones → emergencia_medica   (Alto    — 5 min)
- * 5 pulsaciones → sospechoso          (Medio   — 15 min)
- */
-
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// Pantalla LCD I2C — dirección 0x27, 16 columnas, 2 filas
 LiquidCrystal_I2C lcd(0x27, 16, 2);
-
-// ══════════════════════════════════════════════════════
-//  CONFIGURACIÓN — AJUSTAR POR CADA TÓTEM INSTALADO
-// ══════════════════════════════════════════════════════
 
 const char* WIFI_SSID     = "SpaceX";
 const char* WIFI_PASSWORD = "Isic2026??$";
-const char* MQTT_BROKER   = "192.168.2.46";   // IP del servidor donde corre Docker
+const char* MQTT_BROKER   = "192.168.2.46";   
 const int   MQTT_PORT     = 1883;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
 const char* MQTT_TOPIC    = "c5/alerts/panic";
 
-// Cambiar por la identidad real del punto de instalación
 const char* DEVICE_ID     = "PASILLO";
 const char* LOCATION_NAME = "EDIFICIOS";
 
-// Coordenadas del punto exacto donde está instalado el tótem
+
 const float FIXED_LAT = 19.912752379357503;
 const float FIXED_LON = -99.57860148464074;
 
-// ══════════════════════════════════════════════════════
-//  PINES
-// ══════════════════════════════════════════════════════
 const int BUTTON_PIN = 14;
 const int RED_PIN    = 25;
 const int GREEN_PIN  = 26;
 const int BLUE_PIN   = 27;
 const int BUZZER_PIN = 33;
 
-// ══════════════════════════════════════════════════════
-//  TIPOS DE EMERGENCIA DEL CAMPUS
-// ══════════════════════════════════════════════════════
 const char* EMERGENCY_TYPES[] = {
-  "robo_con_violencia",  // 1 pulso  — CRÍTICO: asalto, robo a mano armada
-  "acoso_violencia",     // 2 pulsos — ALTO:    acoso, pelea, agresión
-  "incendio",            // 3 pulsos — CRÍTICO: incendio, fuga de gas
-  "emergencia_medica",   // 4 pulsos — ALTO:    desmayo, crisis médica
-  "sospechoso"           // 5 pulsos — MEDIO:   persona sospechosa, situación anómala
+  "robo_con_violencia",
+  "acoso_violencia",     
+  "incendio",            
+  "emergencia_medica",   
+  "sospechoso"           
 };
 const int NUM_TYPES = 5;
 
-// Etiquetas cortas para la pantalla LCD (máx 16 chars)
+
 const char* EMERGENCY_LCD[] = {
   "ROBO / ASALTO",   // Crítico
   "ACOSO/VIOLENCIA", // Alto
@@ -84,9 +43,6 @@ const char* EMERGENCY_LCD[] = {
   "SOSPECHOSO"       // Medio
 };
 
-// ══════════════════════════════════════════════════════
-//  VARIABLES
-// ══════════════════════════════════════════════════════
 WiFiClient   espClient;
 PubSubClient mqttClient(espClient);
 
@@ -106,9 +62,6 @@ char TOPIC_STATUS[60];
 
 unsigned long tiempoResolucion = 0;
 
-// ══════════════════════════════════════════════════════
-//  PANTALLA LCD
-// ══════════════════════════════════════════════════════
 void actualizarPantalla(String linea1, String linea2) {
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -117,18 +70,12 @@ void actualizarPantalla(String linea1, String linea2) {
   lcd.print(linea2);
 }
 
-// ══════════════════════════════════════════════════════
-//  LED RGB (Ánodo Común: LOW=encendido, HIGH=apagado)
-// ══════════════════════════════════════════════════════
 void setColor(bool r, bool g, bool b) {
   digitalWrite(RED_PIN,   !r);
   digitalWrite(GREEN_PIN, !g);
   digitalWrite(BLUE_PIN,  !b);
 }
 
-// ══════════════════════════════════════════════════════
-//  BUZZER
-// ══════════════════════════════════════════════════════
 void beep(int duracion_ms) {
   digitalWrite(BUZZER_PIN, HIGH);
   delay(duracion_ms);
@@ -137,26 +84,23 @@ void beep(int duracion_ms) {
 }
 
 void beepAlertaEnviada() {
-  // 2 pitidos cortos = alerta enviada al centro de vigilancia
+  
   beep(100); delay(100);
   beep(100);
 }
 
 void beepAtendida() {
-  // 1 pitido largo = guardia despachado
+
   beep(600);
 }
 
 void beepError() {
-  // 3 pitidos rápidos = error de envío
+  
   beep(80); delay(80);
   beep(80); delay(80);
   beep(80);
 }
 
-// ══════════════════════════════════════════════════════
-//  CALLBACK MQTT — respuestas del centro de vigilancia
-// ══════════════════════════════════════════════════════
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   String mensaje = "";
   for (unsigned int i = 0; i < length; i++) mensaje += (char)payload[i];
@@ -192,9 +136,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-// ══════════════════════════════════════════════════════
-//  WIFI
-// ══════════════════════════════════════════════════════
 void connectWiFi() {
   Serial.print("[WiFi] Conectando a red campus");
   actualizarPantalla("CONECTANDO...", "RED CAMPUS");
@@ -206,9 +147,6 @@ void connectWiFi() {
   Serial.printf("\n[WiFi] ✓ IP: %s\n", WiFi.localIP().toString().c_str());
 }
 
-// ══════════════════════════════════════════════════════
-//  MQTT
-// ══════════════════════════════════════════════════════
 void connectMQTT() {
   int attempts = 0;
   actualizarPantalla("CONECTANDO...", "SERVIDOR C5");
@@ -235,9 +173,6 @@ void connectMQTT() {
   }
 }
 
-// ══════════════════════════════════════════════════════
-//  ENVIAR ALERTA
-// ══════════════════════════════════════════════════════
 void sendAlert(const char* emergencyType, const char* lcdLabel) {
   Serial.printf("\n[ALERT] Enviando: %s\n", emergencyType);
   alertaEnRevision = false;
@@ -276,9 +211,6 @@ void sendAlert(const char* emergencyType, const char* lcdLabel) {
   setColor(0, 1, 0);
 }
 
-// ══════════════════════════════════════════════════════
-//  SETUP
-// ══════════════════════════════════════════════════════
 void setup() {
   Serial.begin(115200);
 
@@ -323,9 +255,6 @@ void setup() {
   Serial.println("    5 → sospechoso          (MEDIO   — 15 min)\n");
 }
 
-// ══════════════════════════════════════════════════════
-//  LOOP
-// ══════════════════════════════════════════════════════
 void loop() {
   if (WiFi.status() != WL_CONNECTED) connectWiFi();
   if (!mqttClient.connected())        connectMQTT();
