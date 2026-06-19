@@ -15,9 +15,15 @@ const char* MQTT_TOPIC    = "c5/alerts/panic";
 const char* DEVICE_ID     = "PASILLO";
 const char* LOCATION_NAME = "EDIFICIOS";
 
-
 const float FIXED_LAT = 19.917390;
 const float FIXED_LON = -99.581418;
+
+//const char* DEVICE_ID     = "CANCHA";
+//const char* LOCATION_NAME = "Estacionamiento";
+
+//const float FIXED_LAT = 19.915247;
+//const float FIXED_LON = -99.580085;
+
 
 const int BUTTON_PIN = 14;
 const int RED_PIN    = 25;
