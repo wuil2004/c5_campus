@@ -1,10 +1,10 @@
-# 🎓 Campus Seguro — Sistema de Alerta Universitaria
+# Campus Seguro — Sistema de Alerta Universitaria
 
 Sistema de seguridad distribuido para **campus universitarios e institutos tecnológicos**, basado en tótems ESP32 con botón de pánico, cámara integrada y conectividad WiFi institucional.
 
 ---
 
-## 🏛️ Caso de uso: Campus Universitario Inteligente
+##  Caso de uso: Campus Universitario Inteligente
 
 Cada tótem es un poste físico instalado en **puntos ciegos, pasillos largos o estacionamientos** del campus. Al presionar el botón de pánico, el sistema:
 
@@ -16,7 +16,7 @@ Cada tótem es un poste físico instalado en **puntos ciegos, pasillos largos o 
 6. El guardia confirma o descarta y el tótem recibe **feedback de LED/buzzer**
 
 
-## 🆘 Sistema de pulsaciones (campus)
+##  Sistema de pulsaciones (campus)
 
 | Pulsaciones | Emergencia | Prioridad | Tiempo respuesta |
 |---|---|---|---|
@@ -28,7 +28,7 @@ Cada tótem es un poste físico instalado en **puntos ciegos, pasillos largos o 
 
 ---
 
-## ⚡ Levantar el sistema
+##  Levantar el sistema
 
 ```bash
 docker compose up --build
@@ -38,7 +38,7 @@ Abrir el dashboard: `index.html` (doble clic) o servirlo con `python3 -m http.se
 
 ---
 
-## 📡 Configurar un tótem ESP32
+##  Configurar un tótem ESP32
 
 1. Editar `esp32/totem_campus/totem_campus.ino`
 2. Cambiar `WIFI_SSID` y `WIFI_PASSWORD` por las credenciales de la red campus
@@ -50,7 +50,7 @@ Abrir el dashboard: `index.html` (doble clic) o servirlo con `python3 -m http.se
 
 ---
 
-## 🔧 Personalizar zonas del campus
+##  Personalizar zonas del campus
 
 Editar `services/geolocation/index.js` → array `CAMPUS_ZONES`:
 
@@ -66,7 +66,7 @@ Editar `services/geolocation/index.js` → array `CAMPUS_ZONES`:
 
 ---
 
-## 📋 Estructura del proyecto
+##  Estructura del proyecto
 
 ```
 smart-campus/
@@ -88,7 +88,7 @@ smart-campus/
 
 ---
 
-## 🧪 Probar sin ESP32
+##  Probar sin ESP32
 
 ```bash
 # Simular alerta desde Laboratorios
