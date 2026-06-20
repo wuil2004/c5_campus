@@ -1,5 +1,3 @@
-// services/history/index.js — Campus Universitario Inteligente
-
 const express = require("express");
 const { Pool } = require("pg");
 const Redis = require("ioredis");
@@ -26,8 +24,8 @@ const MQTT_URL  = process.env.MQTT_BROKER || "mqtt://mosquitto:1883";
 // Usar IP:puerto del stream MJPEG del ESP32-CAM o cámara IP
 const CAMARAS = {
   
-  'PASILLO': 'http://192.168.2.161:8080', // IP de la cámara del pasillo
-  'Cancha':  'http://192.168.2.192:8080', // IP de la cámara de la cancha
+  'PASILLO': 'http://192.168.2.161:8080', 
+  'Cancha':  'http://192.168.2.192:8080', 
   'default': 'http://192.168.2.192:8080' 
 };
 
@@ -43,7 +41,7 @@ replicaPool.on("connect", () => console.log("[History] Conectado a PostgreSQL R�
 
 const redis = new Redis(REDIS_URL);
 
-// ── MQTT para feedback a los tótems ──────────────────
+// ── MQTT para feedback a los tótems
 let mqttClient;
 
 function conectarMQTT() {
@@ -58,7 +56,6 @@ function notificarTotem(device_id, status) {
     console.warn("[History] MQTT no conectado — no se pudo notificar al tótem");
     return;
   }
-  // Soportar ambos prefijos: campus/ y c5/
   const topics = [
     `campus/alerts/status/${device_id}`,
     `c5/alerts/status/${device_id}`
@@ -71,7 +68,7 @@ function notificarTotem(device_id, status) {
   });
 }
 
-// ── Capturar snapshot ─────────────────────────────────
+
 async function capturarSnapshot(device_id) {
   const camURL = getCamURL(device_id);
   const url    = `${camURL}/shot.jpg`;
@@ -88,7 +85,7 @@ async function capturarSnapshot(device_id) {
   });
 }
 
-// ── Migración de BD ───────────────────────────────────
+// Migración de BD 
 async function migrateDB() {
   try {
     await masterPool.query(`
@@ -104,7 +101,7 @@ async function migrateDB() {
   }
 }
 
-// ── Procesador de cola de alertas ─────────────────────
+// Procesador de cola de alertas
 async function processQueue() {
   console.log("[History] Escuchando cola queue:history...");
   while (true) {
@@ -145,7 +142,7 @@ async function processQueue() {
   }
 }
 
-// ── Procesador de transcripciones ────────────────────
+// ── Procesador de transcripciones 
 async function processTranscriptionQueue() {
   console.log("[History] Escuchando cola queue:transcription_save...");
   while (true) {
@@ -165,7 +162,7 @@ async function processTranscriptionQueue() {
   }
 }
 
-// ── REST API ──────────────────────────────────────────
+// REST API
 app.get("/health", async (req, res) => {
   try {
     await replicaPool.query("SELECT 1");

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Esperar a que el master esté listo
+
 until pg_isready -h postgres_master -p 5432 -U c5admin; do
   echo "Esperando al master..."
   sleep 2

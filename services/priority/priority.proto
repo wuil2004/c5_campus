@@ -17,7 +17,7 @@ message AlertRequest {
 
 message AlertResponse {
   string alert_id     = 1;
-  string priority     = 2;   // critical | high | medium
+  string priority     = 2;   
   string reason       = 3;
   string processed_at = 4;
 }

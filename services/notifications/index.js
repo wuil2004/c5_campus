@@ -1,4 +1,3 @@
-// services/notifications/index.js
 const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
@@ -12,12 +11,12 @@ const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
 const redis     = new Redis(REDIS_URL);
 const redisPub  = new Redis(REDIS_URL);
-const redisSub  = new Redis(REDIS_URL);  // canal de transcripción
+const redisSub  = new Redis(REDIS_URL);  
 
 const server = http.createServer(app);
 const wss    = new WebSocket.Server({ server });
 
-// ── WebSocket connections ──────────────────────────
+// ── WebSocket connections
 const operators = new Set();
 
 wss.on("connection", (ws, req) => {
@@ -41,7 +40,7 @@ wss.on("connection", (ws, req) => {
   });
 });
 
-// Reenviar alertas pendientes cuando se conecta un operador
+// Reenviar alertas pendientes 
 wss.on("connection", async (ws) => {
   const pending = await redis.llen("queue:notify_pending");
   if (pending > 0) {
@@ -56,7 +55,7 @@ wss.on("connection", async (ws) => {
   }
 });
 
-// ── Broadcast a todos los operadores ──────────────
+// ── Broadcast a todos los operadores 
 function broadcastToOperators(type, data) {
   const message = JSON.stringify({ type, data });
   let sent = 0;
@@ -70,7 +69,7 @@ function broadcastToOperators(type, data) {
   return sent;
 }
 
-// ── Procesador de cola Redis (alertas) ────────────
+// ── Procesador de cola Redis (alertas) 
 async function processQueue() {
   console.log("[Notifications] Escuchando cola queue:notify...");
   while (true) {
@@ -92,7 +91,7 @@ async function processQueue() {
   }
 }
 
-// ── Suscripción a transcripciones ─────────────────
+// ── Suscripción a transcripciones 
 redisSub.subscribe("channel:transcription", (err) => {
   if (err) {
     console.error("[Notifications] Error suscribiéndose a transcripción:", err.message);
@@ -113,7 +112,7 @@ redisSub.on("message", (channel, message) => {
   }
 });
 
-// ── REST API ───────────────────────────────────────
+// ── REST API
 app.get("/health", (req, res) =>
   res.json({ status: "ok", service: "notifications", operators: operators.size })
 );

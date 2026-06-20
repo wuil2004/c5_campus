@@ -209,6 +209,4 @@ loadRules();
 app.listen(HTTP_PORT, () => {
   console.log(`[Priority] HTTP API en puerto ${HTTP_PORT}`);
   console.log(`[Priority] Técnica: Tabla Hash O(1) — clasificación en ~0.01ms`);
-  // NOTA: Ya no consume ninguna cola Redis.
-  // El flujo ahora es: Geolocation → gRPC ClassifyAlert() → respuesta directa
 });

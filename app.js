@@ -115,7 +115,7 @@ function limpiarFiltros() {
   aplicarFiltros();
 }
 
-// ── Cola ──────────────────────────────────────────────
+// ── Cola 
 function actualizarBadgeCola() {
   const badge = document.getElementById('pending-badge');
   const count = document.getElementById('pending-count');
@@ -136,7 +136,7 @@ function procesarSiguienteEnCola() {
   abrirModal(sig.alert, sig.card);
 }
 
-// ── Mapa ──────────────────────────────────────────────
+// ── Mapa 
 const map = L.map('map').setView([19.9127, -99.5786], 17);
 const capaHibrida = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
   maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3']
@@ -164,7 +164,7 @@ const icons = {
   ok:       makeIcon('#1AD68A', false),
 };
 
-// ── Transcripción ─────────────────────────────────────
+// ── Transcripción 
 function resaltarKeywords(texto) {
   let r = texto;
   KEYWORDS_DANGER .forEach(w => r = r.replace(new RegExp(`\\b${w}\\b`,'gi'), `<span class="kw-danger">${w}</span>`));
@@ -208,7 +208,7 @@ function noDisponibleTrans() {
   document.getElementById('kw-alert').classList.remove('visible');
 }
 
-// ── Modal ─────────────────────────────────────────────
+// ── Modal 
 function colorPriority(p) {
   if (p === 'critical') return 'var(--critical)';
   if (p === 'high')     return 'var(--high)';
@@ -336,12 +336,12 @@ async function verificarAlerta(decision) {
   resultDiv.style.display = 'block';
   if (decision === 'confirmed') {
     resultDiv.className   = 'confirmed';
-    resultDiv.textContent = '✅ Guardia despachado — incidente confirmado';
+    resultDiv.textContent = 'Guardia despachado — incidente confirmado';
     if (tarjetaEnModal) liveCount = Math.max(0, liveCount - 1);
     document.getElementById('live-count').textContent = liveCount;
   } else {
     resultDiv.className   = 'false-alarm';
-    resultDiv.textContent = '❌ Marcado como falsa alarma';
+    resultDiv.textContent = 'Marcado como falsa alarma';
   }
 
   if (tarjetaEnModal) actualizarTarjeta(tarjetaEnModal, decision);
@@ -354,7 +354,7 @@ function actualizarTarjeta(card, decision) {
   const badge = card.querySelector('.priority-badge');
   if (badge) {
     badge.className   = `priority-badge ${decision === 'confirmed' ? 'bg-ok' : 'bg-false'}`;
-    badge.textContent = decision === 'confirmed' ? '✅ GUARDIA DESPACHADO' : '❌ FALSA ALARMA';
+    badge.textContent = decision === 'confirmed' ? 'GUARDIA DESPACHADO' : 'FALSA ALARMA';
   }
 }
 
@@ -362,7 +362,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target.id === 'modal-overlay') cerrarModal();
 });
 
-// ── Renderizar tarjeta ────────────────────────────────
+// ── Renderizar tarjeta 
 function renderAlert(alert, type) {
   const emptyEl = document.getElementById('empty-state');
   if (emptyEl) emptyEl.remove();
@@ -372,8 +372,8 @@ function renderAlert(alert, type) {
   const dateStr      = new Date(alert.timestamp).toLocaleDateString('es-MX', { day:'2-digit', month:'short' });
   const pclass       = alert.priority === 'critical' ? 'critical' : alert.priority === 'high' ? 'high' : 'medium';
   const badgeClass   = alert.status === 'confirmed' ? 'bg-ok' : alert.status === 'false_alarm' ? 'bg-false' : `bg-${pclass}`;
-  const badgeText    = alert.status === 'confirmed'  ? '✅ GUARDIA DESPACHADO'
-                     : alert.status === 'false_alarm' ? '❌ FALSA ALARMA'
+  const badgeText    = alert.status === 'confirmed'  ? ' GUARDIA DESPACHADO'
+                     : alert.status === 'false_alarm' ? 'FALSA ALARMA'
                      : labelPriority(alert.priority);
 
   let tagHtml = '';
@@ -466,7 +466,7 @@ function connectWS() {
   };
 }
 
-// ── Historial inicial ─────────────────────────────────
+// ── Historial inicial 
 async function cargarHistorial() {
   try {
     const resp  = await fetch(`${API_URL}/alerts?limit=10`);

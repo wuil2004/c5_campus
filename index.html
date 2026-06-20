@@ -55,8 +55,8 @@
 
   <div id="sidebar">
     <div class="tabs">
-      <div class="tab active" id="tab-live"    onclick="cambiarTab('live')">🔴 En Vivo</div>
-      <div class="tab"        id="tab-history" onclick="cambiarTab('history')">📋 Historial</div>
+      <div class="tab active" id="tab-live"    onclick="cambiarTab('live')">En Vivo</div>
+      <div class="tab"        id="tab-history" onclick="cambiarTab('history')"> Historial</div>
     </div>
 
     <div id="filter-panel">
@@ -125,9 +125,9 @@
         <span class="filter-label">Estado</span>
         <div class="chips">
           <span class="chip active-chip" onclick="setChip(this,'status','')">Todos</span>
-          <span class="chip" onclick="setChip(this,'status','confirmed')">✅ Confirmados</span>
-          <span class="chip" onclick="setChip(this,'status','false_alarm')">❌ Falsa alarma</span>
-          <span class="chip" onclick="setChip(this,'status','received')">⏳ Pendientes</span>
+          <span class="chip" onclick="setChip(this,'status','confirmed')">Confirmados</span>
+          <span class="chip" onclick="setChip(this,'status','false_alarm')">Falsa alarma</span>
+          <span class="chip" onclick="setChip(this,'status','received')">Pendientes</span>
         </div>
       </div>
 
@@ -143,7 +143,7 @@
 
     <div id="alerts-list">
       <div id="empty-state">
-        <div class="empty-icon">📡</div>
+        <div class="empty-icon"></div>
         Esperando incidentes del campus...
       </div>
     </div>
@@ -190,11 +190,11 @@
 
       <div class="camera-section">
         <div class="cam-box">
-          <span class="cam-label">🔴 En vivo</span>
+          <span class="cam-label">En vivo</span>
           <img id="cam-live" class="cam-stream" src="" alt="Stream"
             onerror="this.style.display='none';document.getElementById('cam-live-err').style.display='flex';" />
           <div class="cam-error" id="cam-live-err" style="display:none;">
-            <span style="font-size:1.8rem">📵</span>
+            <span style="font-size:1.8rem"></span>
             <span>Cámara no disponible</span>
           </div>
         </div>
@@ -204,7 +204,7 @@
           <img id="snapshot-img" class="cam-stream" src="" alt="Snapshot"
             onerror="this.style.display='none';document.getElementById('snap-err').style.display='flex';" />
           <div class="cam-error" id="snap-err" style="display:none;">
-            <span style="font-size:1.8rem">🖼️</span>
+            <span style="font-size:1.8rem"></span>
             <span>Sin captura disponible</span>
           </div>
         </div>
@@ -219,16 +219,16 @@
         <div id="trans-text" class="empty">
           El sistema está capturando y analizando el audio del lugar...
         </div>
-        <div class="kw-alert" id="kw-alert">⚠️ Palabras de alerta detectadas — posible emergencia real</div>
+        <div class="kw-alert" id="kw-alert">Palabras de alerta detectadas — posible emergencia real</div>
       </div>
 
       <div id="modal-result"></div>
       <div class="modal-actions" id="modal-btns">
         <button class="btn-confirm" id="btn-confirm" onclick="verificarAlerta('confirmed')">
-          ✅ Confirmar — Despachar guardia
+          Confirmar — Despachar guardia
         </button>
         <button class="btn-discard" id="btn-discard" onclick="verificarAlerta('false_alarm')">
-          ❌ Falsa alarma
+          Falsa alarma
         </button>
       </div>
     </div>

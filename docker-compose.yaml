@@ -12,9 +12,9 @@ volumes:
 
 services:
 
-  # ─────────────────────────────────────────────
+  
   # INFRAESTRUCTURA BASE
-  # ─────────────────────────────────────────────
+  
 
   mosquitto:
     image: eclipse-mosquitto:2.0
@@ -76,9 +76,9 @@ services:
       - c5net
     restart: unless-stopped
 
-  # ─────────────────────────────────────────────
+  
   # MICROSERVICIO 1: RECEPCIÓN DE ALERTAS (x3 instancias)
-  # ─────────────────────────────────────────────
+
 
   reception_1:
     build: ./services/reception
@@ -125,9 +125,9 @@ services:
       - c5net
     restart: unless-stopped
 
-  # ─────────────────────────────────────────────
+  
   # NGINX: Balanceador de carga (least_conn)
-  # ─────────────────────────────────────────────
+  
 
   nginx:
     image: nginx:alpine
@@ -144,10 +144,10 @@ services:
       - c5net
     restart: unless-stopped
 
-  # ─────────────────────────────────────────────
+  
   # MICROSERVICIO 3: ASIGNACIÓN DE PRIORIDAD (gRPC + HTTP)
   # Debe arrancar ANTES que Geolocation porque es el servidor gRPC
-  # ─────────────────────────────────────────────
+  
 
   priority:
     build: ./services/priority
@@ -167,12 +167,12 @@ services:
       - c5net
     restart: unless-stopped
 
-  # ─────────────────────────────────────────────
+  
   # MICROSERVICIO 2: GEOLOCALIZACIÓN
   # Cliente gRPC de Priority — debe arrancar después de Priority
   # Flujo: queue:alerts → [geo enrich] → gRPC ClassifyAlert
   #      → queue:notify + queue:history + queue:transcription_input
-  # ─────────────────────────────────────────────
+
 
   geolocation:
     build: ./services/geolocation
@@ -188,9 +188,9 @@ services:
       - c5net
     restart: unless-stopped
 
-  # ─────────────────────────────────────────────
+  
   # MICROSERVICIO 4: NOTIFICACIONES (WebSocket)
-  # ─────────────────────────────────────────────
+   
 
   notifications:
     build: ./services/notifications
@@ -206,9 +206,9 @@ services:
       - c5net
     restart: unless-stopped
 
-  # ─────────────────────────────────────────────
+  
   # MICROSERVICIO 5: HISTORIAL DE INCIDENTES
-  # ─────────────────────────────────────────────
+  
 
   history:
     build: ./services/history
@@ -228,9 +228,7 @@ services:
       - c5net
     restart: unless-stopped
 
-  # ─────────────────────────────────────────────
-  # MICROSERVICIO 6: TRANSCRIPCIÓN DE AUDIO
-  # ─────────────────────────────────────────────
+  
 
   transcription:
     build: ./services/transcription

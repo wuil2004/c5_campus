@@ -1,4 +1,4 @@
-// services/geolocation/index.js — Campus Universitario Inteligente
+
 // Enriquece coordenadas con zona del campus y llama a Priority via gRPC
 
 const express     = require("express");
@@ -18,10 +18,9 @@ const PRIORITY_GRPC = process.env.PRIORITY_GRPC || "priority:50051";
 const redis    = new Redis(REDIS_URL);
 const redisPub = new Redis(REDIS_URL);
 
-// ══════════════════════════════════════════════════════
+
 //  CLIENTE gRPC → Priority
 //  Carga el mismo .proto que usa el servidor
-// ══════════════════════════════════════════════════════
 const packageDef = protoLoader.loadSync(
   path.join(__dirname, "priority.proto"),
   { keepCase: true, longs: String, enums: String, defaults: true, oneofs: true }
@@ -42,11 +41,8 @@ function callClassifyAlert(request) {
   });
 }
 
-// ══════════════════════════════════════════════════════
 //  MAPA DE ZONAS DEL CAMPUS
-//  Ajustar los polígonos según el plano real de tu institución.
-//  Cada zona tiene un nombre descriptivo para los guardias.
-// ══════════════════════════════════════════════════════
+
 const CAMPUS_ZONES = [
   {
     name: "Edificio de Laboratorios",
@@ -99,11 +95,11 @@ const CAMPUS_ZONES = [
   }
 ];
 
-// ── Cache de geocodificación inversa ─────────────────
+// ── Cache de geocodificación inversa
 const geoCache    = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-// ── Buscar zona del campus por coordenadas ────────────
+// ── Buscar zona del campus por coordenadas
 function findCampusZone(lat, lon) {
   for (const zone of CAMPUS_ZONES) {
     const b = zone.bounds;
@@ -114,7 +110,7 @@ function findCampusZone(lat, lon) {
   return null;
 }
 
-// ── Identificar zona a partir del device_id del tótem ─
+// ── Identificar zona 
 function getZoneFromDevice(alert) {
   if (alert.location_name) {
     const match = CAMPUS_ZONES.find(z =>
@@ -125,7 +121,7 @@ function getZoneFromDevice(alert) {
   return null;
 }
 
-// ── Geocodificación inversa con OpenStreetMap (fallback) ─
+// ── Geocodificación inversa con OpenStreetMap (fallback)
 function reverseGeocode(lat, lon) {
   return new Promise((resolve) => {
     const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
@@ -165,11 +161,10 @@ function reverseGeocode(lat, lon) {
   });
 }
 
-// ══════════════════════════════════════════════════════
 //  PROCESADOR DE COLA REDIS
 //  Flujo: queue:alerts → [geo enrich] → gRPC Priority
 //       → queue:notify + queue:history + queue:transcription_input
-// ══════════════════════════════════════════════════════
+
 async function processQueue() {
   console.log("[Geolocation] Escuchando cola queue:alerts...");
   console.log(`[Geolocation] Cliente gRPC conectado a Priority → ${PRIORITY_GRPC}`);
@@ -186,7 +181,7 @@ async function processQueue() {
 
       console.log(`[Geolocation] Procesando: device=${alert.device_id} coords=(${lat}, ${lon})`);
 
-      // ── PASO 1: Enriquecer con zona del campus ──────
+      // Enriquecer con zona del campus ──────
       let campusZone = getZoneFromDevice(alert) || findCampusZone(lat, lon);
       let enriched;
 
@@ -231,9 +226,9 @@ async function processQueue() {
         await new Promise(r => setTimeout(r, 1100));
       }
 
-      // ── PASO 2: Llamar a Priority via gRPC ──────────
+      // Llamar a Priority via gRPC 
       //    Geolocation actúa como cliente gRPC de Priority.
-      //    Enviamos los datos enriquecidos (incluye zona ya resuelta).
+      //    Envia los datos enriquecidos (incluye zona ya resuelta).
       console.log(`[Geolocation] → gRPC ClassifyAlert: device=${enriched.device_id} tipo="${enriched.emergency_type}" zona="${enriched.zone}"`);
 
       const grpcRequest = {
@@ -250,8 +245,7 @@ async function processQueue() {
         grpcResponse = await callClassifyAlert(grpcRequest);
         console.log(`[Geolocation] ← gRPC respuesta: alert_id=${grpcResponse.alert_id} priority=${grpcResponse.priority.toUpperCase()}`);
       } catch (grpcErr) {
-        // Si gRPC falla (Priority caído), clasificar localmente como medium
-        // y continuar sin perder la alerta
+        // Si gRPC falla (Priority caído), clasificar localmente como medium y continuar sin perder la alerta
         console.error(`[Geolocation] ✗ gRPC error: ${grpcErr.message} — usando prioridad por defecto`);
         grpcResponse = {
           alert_id:    `ALT-${Date.now()}-${enriched.device_id}`,
@@ -261,7 +255,7 @@ async function processQueue() {
         };
       }
 
-      // ── PASO 3: Combinar geo + clasificación gRPC ───
+      // Combinar geo + clasificación gRPC 
       const processed = {
         ...enriched,
         alert_id:              grpcResponse.alert_id,
@@ -279,7 +273,7 @@ async function processQueue() {
         `${processed.alert_id} | ${processed.zone} | ${processed.priority.toUpperCase()}`
       );
 
-      // ── PASO 4: Publicar en paralelo a notify, history y transcripción ─
+      // Publicar en paralelo a notify, history y transcripción
       await Promise.all([
         redisPub.lpush("queue:notify",              JSON.stringify(processed)),
         redisPub.lpush("queue:history",             JSON.stringify(processed)),
@@ -293,7 +287,7 @@ async function processQueue() {
   }
 }
 
-// ── REST API ──────────────────────────────────────────
+//REST API 
 app.get("/health", (req, res) =>
   res.json({
     status:        "ok",
@@ -303,7 +297,7 @@ app.get("/health", (req, res) =>
   })
 );
 
-// Mapa completo de zonas del campus (para el dashboard)
+// Mapa completo de zonas del campus 
 app.get("/campus/zones", (req, res) => {
   res.json({ zones: CAMPUS_ZONES, total: CAMPUS_ZONES.length });
 });
